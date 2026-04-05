@@ -1,0 +1,523 @@
+!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>DUEL — Two Player Games</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Space+Mono:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+<style>
+:root {
+  --bg: #050508;
+  --bg2: #0c0c14;
+  --card: #111120;
+  --border: #1e1e35;
+  --accent: #7c3aed;
+  --accent2: #06b6d4;
+  --accent3: #f59e0b;
+  --red: #ef4444;
+  --green: #22c55e;
+  --text: #e2e8f0;
+  --muted: #64748b;
+  --glow: 0 0 20px rgba(124,58,237,0.4);
+}
+* { box-sizing:border-box; margin:0; padding:0; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Space Mono', monospace;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+body::before {
+  content:'';
+  position:fixed; inset:0; z-index:0;
+  background-image:
+    linear-gradient(rgba(124,58,237,0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(124,58,237,0.05) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events:none;
+}
+.container { position:relative; z-index:1; max-width:1100px; margin:0 auto; padding:0 20px; }
+header {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:24px 40px;
+  border-bottom: 1px solid var(--border);
+  background: rgba(5,5,8,0.8);
+  backdrop-filter: blur(10px);
+  position:sticky; top:0; z-index:100;
+}
+.logo {
+  font-family:'Orbitron', sans-serif;
+  font-size:28px; font-weight:900;
+  letter-spacing:4px;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+}
+.logo span { -webkit-text-fill-color: var(--accent3); }
+nav { display:flex; gap:8px; }
+.nav-btn {
+  background:transparent; border:1px solid var(--border);
+  color:var(--muted); padding:8px 16px;
+  font-family:'Space Mono',monospace; font-size:11px;
+  letter-spacing:2px; cursor:pointer; border-radius:4px;
+  transition:all .2s;
+}
+.nav-btn:hover, .nav-btn.active {
+  border-color:var(--accent); color:var(--accent);
+  box-shadow: 0 0 12px rgba(124,58,237,0.3);
+}
+.screen { display:none; animation: fadeIn .3s ease; }
+.screen.active { display:block; }
+@keyframes fadeIn { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:none} }
+.hero {
+  text-align:center; padding:80px 20px 60px;
+}
+.hero-title {
+  font-family:'Orbitron',sans-serif; font-size:clamp(40px,8vw,80px);
+  font-weight:900; line-height:1;
+  background:linear-gradient(135deg,#fff 30%,var(--accent2));
+  -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+  margin-bottom:16px;
+}
+.hero-sub {
+  color:var(--muted); font-size:14px; letter-spacing:3px;
+  margin-bottom:48px;
+}
+.games-grid {
+  display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr));
+  gap:20px; padding-bottom:60px;
+}
+.game-card {
+  background:var(--card);
+  border:1px solid var(--border);
+  border-radius:12px; padding:28px;
+  cursor:pointer; transition:all .25s;
+  position:relative; overflow:hidden;
+}
+.game-card::before {
+  content:'';
+  position:absolute; inset:0;
+  background: linear-gradient(135deg, transparent 50%, rgba(124,58,237,0.06));
+  pointer-events:none;
+}
+.game-card:hover {
+  border-color:var(--accent);
+  transform:translateY(-4px);
+  box-shadow: 0 8px 32px rgba(124,58,237,0.2), var(--glow);
+}
+.game-icon { font-size:48px; margin-bottom:16px; display:block; }
+.game-name {
+  font-family:'Orbitron',sans-serif; font-size:16px;
+  font-weight:700; letter-spacing:2px;
+  margin-bottom:8px; color:#fff;
+}
+.game-desc { font-size:11px; color:var(--muted); line-height:1.6; }
+.game-tag {
+  display:inline-block; margin-top:14px;
+  padding:4px 10px; border-radius:20px;
+  font-size:10px; letter-spacing:1px;
+  border:1px solid var(--accent); color:var(--accent);
+}
+.lobby-wrap {
+  max-width:520px; margin:60px auto;
+  background:var(--card); border:1px solid var(--border);
+  border-radius:16px; padding:40px;
+}
+.lobby-title {
+  font-family:'Orbitron',sans-serif; font-size:22px;
+  font-weight:700; margin-bottom:8px;
+  color:#fff; letter-spacing:2px;
+}
+.lobby-sub { color:var(--muted); font-size:12px; margin-bottom:32px; }
+.section-divider {
+  display:flex; align-items:center; gap:12px; margin:24px 0;
+  color:var(--muted); font-size:11px; letter-spacing:2px;
+}
+.section-divider::before,.section-divider::after {
+  content:''; flex:1; height:1px; background:var(--border);
+}
+.btn {
+  display:block; width:100%; padding:14px 20px;
+  font-family:'Space Mono',monospace; font-size:13px;
+  letter-spacing:2px; font-weight:700;
+  border:none; border-radius:8px; cursor:pointer;
+  transition:all .2s;
+}
+.btn-primary {
+  background: linear-gradient(135deg,var(--accent),#5b21b6);
+  color:#fff;
+}
+.btn-primary:hover { opacity:.85; transform:translateY(-1px); box-shadow:var(--glow); }
+.btn-secondary {
+  background:transparent; border:1px solid var(--border);
+  color:var(--text);
+}
+.btn-secondary:hover { border-color:var(--accent2); color:var(--accent2); }
+.btn-danger {
+  background:linear-gradient(135deg,var(--red),#b91c1c);
+  color:#fff;
+}
+.input {
+  width:100%; padding:12px 16px;
+  background:var(--bg2); border:1px solid var(--border);
+  border-radius:8px; color:var(--text);
+  font-family:'Space Mono',monospace; font-size:13px;
+  letter-spacing:2px; margin-bottom:12px;
+  transition:border-color .2s;
+}
+.input:focus { outline:none; border-color:var(--accent); }
+.room-code-display {
+  text-align:center; padding:20px;
+  background:var(--bg2); border-radius:8px;
+  border:1px dashed var(--accent);
+  margin:16px 0;
+}
+.room-code {
+  font-family:'Orbitron',sans-serif; font-size:36px;
+  font-weight:900; letter-spacing:8px;
+  color:var(--accent2);
+}
+.room-code-label { font-size:11px; color:var(--muted); margin-bottom:8px; letter-spacing:2px; }
+.waiting-dots::after {
+  content:'...';
+  animation: dots 1.2s steps(4,end) infinite;
+}
+@keyframes dots {
+  0%{content:'.'} 33%{content:'..'} 66%{content:'...'} 100%{content:''}
+}
+.status-bar {
+  display:flex; align-items:center; gap:8px;
+  padding:10px 14px; border-radius:6px;
+  font-size:11px; letter-spacing:1px; margin:12px 0;
+}
+.status-info { background:rgba(6,182,212,0.1); border:1px solid rgba(6,182,212,0.3); color:var(--accent2); }
+.status-success { background:rgba(34,197,94,0.1); border:1px solid rgba(34,197,94,0.3); color:var(--green); }
+.status-warn { background:rgba(245,158,11,0.1); border:1px solid rgba(245,158,11,0.3); color:var(--accent3); }
+.dot { width:6px;height:6px;border-radius:50%; }
+.dot-blue{background:var(--accent2)} .dot-green{background:var(--green)} .dot-yellow{background:var(--accent3)}
+.game-area {
+  display:grid; grid-template-columns:1fr 320px; gap:20px;
+  padding:20px 0 40px;
+}
+@media(max-width:800px){.game-area{grid-template-columns:1fr}}
+.game-board-wrap {
+  background:var(--card); border:1px solid var(--border);
+  border-radius:16px; padding:32px;
+}
+.game-sidebar {
+  display:flex; flex-direction:column; gap:16px;
+}
+.sidebar-card {
+  background:var(--card); border:1px solid var(--border);
+  border-radius:12px; padding:20px;
+}
+.sidebar-title {
+  font-family:'Orbitron',sans-serif; font-size:12px;
+  letter-spacing:2px; color:var(--muted); margin-bottom:12px;
+}
+.player-slot {
+  display:flex; align-items:center; gap:10px;
+  padding:10px; border-radius:8px;
+  border:1px solid var(--border); margin-bottom:8px;
+  transition:all .2s;
+}
+.player-slot.active-turn {
+  border-color:var(--accent);
+  box-shadow: 0 0 12px rgba(124,58,237,0.2);
+}
+.player-avatar {
+  width:36px;height:36px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  font-size:16px;font-weight:700;
+  font-family:'Orbitron',sans-serif;
+}
+.avatar-p1{background:linear-gradient(135deg,var(--accent),#5b21b6);}
+.avatar-p2{background:linear-gradient(135deg,var(--red),#b91c1c);}
+.player-name { font-size:12px; font-weight:700; }
+.player-role { font-size:10px; color:var(--muted); }
+.turn-indicator {
+  margin-left:auto; font-size:10px; letter-spacing:1px;
+  padding:3px 8px; border-radius:12px;
+}
+.turn-indicator.yours { background:rgba(124,58,237,0.2); color:var(--accent); }
+.turn-indicator.theirs { color:var(--muted); }
+.ttt-board {
+  display:grid; grid-template-columns:repeat(3,1fr);
+  gap:12px; max-width:300px; margin:0 auto;
+}
+.ttt-cell {
+  aspect-ratio:1; background:var(--bg2);
+  border:2px solid var(--border); border-radius:12px;
+  display:flex;align-items:center;justify-content:center;
+  font-family:'Orbitron',sans-serif; font-size:48px; font-weight:900;
+  cursor:pointer; transition:all .15s;
+}
+.ttt-cell:hover:not(.filled) { border-color:var(--accent); background:rgba(124,58,237,0.1); }
+.ttt-cell.filled{cursor:default;}
+.ttt-cell.x { color:var(--accent); }
+.ttt-cell.o { color:var(--red); }
+.ttt-cell.win { border-color:var(--accent3); background:rgba(245,158,11,0.15); animation:pulse .6s ease infinite alternate; }
+@keyframes pulse { from{box-shadow:none} to{box-shadow:0 0 20px rgba(245,158,11,0.4)} }
+.c4-board {
+  display:grid; grid-template-columns:repeat(7,1fr);
+  gap:6px; max-width:420px; margin:0 auto;
+  background:var(--bg2); padding:12px; border-radius:12px;
+}
+.c4-col { display:flex; flex-direction:column; gap:6px; cursor:pointer; }
+.c4-col:hover .c4-cell { border-color:var(--muted); }
+.c4-cell {
+  aspect-ratio:1; border-radius:50%;
+  border:2px solid var(--border);
+  background:var(--bg);
+  transition:all .2s;
+}
+.c4-cell.R { background:linear-gradient(135deg,#ef4444,#b91c1c); border-color:#ef4444; }
+.c4-cell.Y { background:linear-gradient(135deg,#f59e0b,#d97706); border-color:#f59e0b; }
+.chess-wrap { overflow-x:auto; }
+.chess-board {
+  display:grid; grid-template-columns:repeat(8,1fr);
+  max-width:480px; margin:0 auto;
+  border:2px solid var(--border); border-radius:8px; overflow:hidden;
+}
+.chess-cell {
+  aspect-ratio:1; display:flex;align-items:center;justify-content:center;
+  font-size:28px; cursor:pointer; transition:background .15s;
+  position:relative;
+}
+.chess-cell.light{background:#1e1e35;}
+.chess-cell.dark{background:#111120;}
+.chess-cell.selected{background:rgba(124,58,237,0.4)!important;}
+.chess-cell.movable{background:rgba(6,182,212,0.2)!important;}
+.chess-cell.movable::after{
+  content:''; position:absolute;
+  width:30%; height:30%; border-radius:50%;
+  background:rgba(6,182,212,0.5);
+}
+.chess-cell:hover{filter:brightness(1.3);}
+.bs-container { display:flex; flex-direction:column; gap:20px; align-items:center; }
+.bs-grids { display:flex; gap:24px; flex-wrap:wrap; justify-content:center; }
+.bs-grid-wrap { text-align:center; }
+.bs-label { font-size:11px; letter-spacing:2px; color:var(--muted); margin-bottom:8px; }
+.bs-grid {
+  display:grid; grid-template-columns:repeat(10,32px);
+  gap:2px; background:var(--bg2); padding:8px; border-radius:8px;
+}
+.bs-cell {
+  width:32px;height:32px; border-radius:3px;
+  background:rgba(6,182,212,0.08);
+  border:1px solid rgba(6,182,212,0.15);
+  cursor:pointer; transition:all .15s;
+  display:flex;align-items:center;justify-content:center;
+  font-size:14px;
+}
+.bs-cell:hover{background:rgba(6,182,212,0.2);}
+.bs-cell.ship{background:rgba(124,58,237,0.4);border-color:var(--accent);}
+.bs-cell.hit{background:rgba(239,68,68,0.6);border-color:var(--red);cursor:default;}
+.bs-cell.miss{background:rgba(100,116,139,0.3);border-color:var(--muted);cursor:default;}
+.bs-ships-panel { display:flex; gap:8px; flex-wrap:wrap; justify-content:center; margin-bottom:8px; }
+.bs-ship-btn {
+  padding:6px 12px; border-radius:6px;
+  background:var(--bg2); border:1px solid var(--border);
+  color:var(--text); font-family:'Space Mono',monospace; font-size:11px;
+  cursor:pointer; transition:all .2s;
+}
+.bs-ship-btn.selected { border-color:var(--accent); color:var(--accent); background:rgba(124,58,237,0.15); }
+.bs-ship-btn.placed { border-color:var(--green); color:var(--green); opacity:.7; }
+.chat-messages {
+  height:180px; overflow-y:auto;
+  display:flex;flex-direction:column;gap:6px;
+  margin-bottom:10px;
+}
+.chat-msg { font-size:11px; line-height:1.5; }
+.chat-msg .chat-name { color:var(--accent2); font-weight:700; }
+.chat-msg .chat-text { color:var(--text); }
+.chat-input-row { display:flex; gap:8px; }
+.chat-input {
+  flex:1; padding:8px 12px;
+  background:var(--bg2); border:1px solid var(--border);
+  border-radius:6px; color:var(--text);
+  font-family:'Space Mono',monospace; font-size:11px;
+}
+.chat-input:focus{outline:none;border-color:var(--accent);}
+.chat-send {
+  padding:8px 14px; background:var(--accent);
+  border:none; border-radius:6px; color:#fff;
+  font-family:'Space Mono',monospace; font-size:11px;
+  cursor:pointer;
+}
+.result-overlay {
+  position:fixed;inset:0;z-index:200;
+  background:rgba(5,5,8,0.85); backdrop-filter:blur(8px);
+  display:none;align-items:center;justify-content:center;
+}
+.result-overlay.show{display:flex;}
+.result-card {
+  background:var(--card); border:1px solid var(--border);
+  border-radius:20px; padding:48px; text-align:center;
+  animation:scaleIn .4s cubic-bezier(.34,1.56,.64,1);
+  max-width:360px; width:90%;
+}
+@keyframes scaleIn{from{transform:scale(.7);opacity:0}to{transform:scale(1);opacity:1}}
+.result-emoji { font-size:72px; margin-bottom:16px; display:block; }
+.result-title {
+  font-family:'Orbitron',sans-serif; font-size:28px;
+  font-weight:900; margin-bottom:8px;
+}
+.result-sub { color:var(--muted); font-size:13px; margin-bottom:32px; }
+.result-btns{display:flex;gap:10px;flex-direction:column;}
+.game-header {
+  display:flex;align-items:center;justify-content:space-between;
+  margin-bottom:24px;
+}
+.game-title {
+  font-family:'Orbitron',sans-serif; font-size:18px;
+  font-weight:700; letter-spacing:2px;
+}
+.back-btn {
+  background:transparent; border:1px solid var(--border);
+  color:var(--muted); padding:6px 14px;
+  font-family:'Space Mono',monospace; font-size:11px;
+  letter-spacing:1px; cursor:pointer; border-radius:6px;
+  transition:all .2s;
+}
+.back-btn:hover{border-color:var(--accent2);color:var(--accent2);}
+.info-msg{
+  font-size:13px;color:var(--muted);letter-spacing:1px;
+  text-align:center;padding:12px;
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">DUEL<span>.</span></div>
+  <nav>
+    <button class="nav-btn active" onclick="showScreen('home')">GAMES</button>
+    <button class="nav-btn" onclick="showScreen('how')">HOW TO PLAY</button>
+  </nav>
+</header>
+
+<div id="screen-home" class="screen active container">
+  <div class="hero">
+    <div class="hero-title">PLAY TOGETHER</div>
+    <div class="hero-sub">REAL-TIME TWO PLAYER GAMES · NO ADS · FREE FOREVER</div>
+  </div>
+  <div class="games-grid">
+    <div class="game-card" onclick="openLobby('ttt')">
+      <span class="game-icon">⚔️</span>
+      <div class="game-name">TIC TAC TOE</div>
+      <div class="game-desc">Classic 3×3 grid. Get three in a row to win.</div>
+      <span class="game-tag">2 PLAYERS</span>
+    </div>
+    <div class="game-card" onclick="openLobby('c4')">
+      <span class="game-icon">🔴</span>
+      <div class="game-name">CONNECT FOUR</div>
+      <div class="game-desc">Drop discs into a 7×6 grid. Connect four to win.</div>
+      <span class="game-tag">2 PLAYERS</span>
+    </div>
+    <div class="game-card" onclick="openLobby('chess')">
+      <span class="game-icon">♟️</span>
+      <div class="game-name">CHESS</div>
+      <div class="game-desc">The ultimate strategy game. Capture the king.</div>
+      <span class="game-tag">2 PLAYERS</span>
+    </div>
+    <div class="game-card" onclick="openLobby('battleship')">
+      <span class="game-icon">🚢</span>
+      <div class="game-name">BATTLESHIP</div>
+      <div class="game-desc">Place your fleet. Sink all enemy ships to win.</div>
+      <span class="game-tag">2 PLAYERS</span>
+    </div>
+  </div>
+</div>
+
+<div id="screen-how" class="screen container" style="padding:40px 0">
+  <div class="lobby-wrap" style="max-width:700px">
+    <div class="lobby-title">HOW TO PLAY</div>
+    <div style="display:flex;flex-direction:column;gap:16px;font-size:13px;line-height:1.8;color:var(--muted)">
+      <div><span style="color:var(--accent2)">01 —</span> Pick a game from the home screen</div>
+      <div><span style="color:var(--accent2)">02 —</span> Click CREATE ROOM to get a 6-digit code</div>
+      <div><span style="color:var(--accent2)">03 —</span> Share the code with your friend</div>
+      <div><span style="color:var(--accent2)">04 —</span> Friend enters the code and joins</div>
+      <div><span style="color:var(--accent2)">05 —</span> Game starts automatically!</div>
+    </div>
+  </div>
+</div>
+
+<div id="screen-lobby" class="screen container">
+  <div class="lobby-wrap">
+    <button class="back-btn" style="margin-bottom:20px" onclick="showScreen('home')">← BACK</button>
+    <div class="lobby-title" id="lobby-game-title">GAME</div>
+    <div class="lobby-sub">Create or join a room</div>
+    <div id="lobby-actions">
+      <input class="input" id="player-name-input" placeholder="YOUR NAME (optional)" maxlength="12"/>
+      <button class="btn btn-primary" onclick="createRoom()" style="margin-bottom:10px">CREATE ROOM</button>
+      <div class="section-divider">OR</div>
+      <input class="input" id="join-code-input" placeholder="ENTER ROOM CODE" maxlength="6" style="text-transform:uppercase"/>
+      <button class="btn btn-secondary" onclick="joinRoom()">JOIN ROOM</button>
+    </div>
+    <div id="room-waiting" style="display:none">
+      <div class="room-code-display">
+        <div class="room-code-label">YOUR ROOM CODE</div>
+        <div class="room-code" id="room-code-display">------</div>
+      </div>
+      <div class="status-bar status-warn">
+        <div class="dot dot-yellow"></div>
+        <span>Waiting for opponent<span class="waiting-dots"></span></span>
+      </div>
+      <button class="btn btn-secondary" onclick="copyCode()">📋 COPY CODE</button>
+    </div>
+  </div>
+</div>
+
+<div id="screen-game" class="screen container">
+  <div class="game-area">
+    <div class="game-board-wrap">
+      <div class="game-header">
+        <div class="game-title" id="game-title-bar">GAME</div>
+        <button class="back-btn" onclick="leaveGame()">LEAVE</button>
+      </div>
+      <div id="game-board-area"></div>
+    </div>
+    <div class="game-sidebar">
+      <div class="sidebar-card">
+        <div class="sidebar-title">PLAYERS</div>
+        <div class="player-slot" id="slot-p1">
+          <div class="player-avatar avatar-p1" id="av1">P1</div>
+          <div>
+            <div class="player-name" id="name-p1">Player 1</div>
+            <div class="player-role" id="role-p1">—</div>
+          </div>
+          <span class="turn-indicator" id="turn-p1"></span>
+        </div>
+        <div class="player-slot" id="slot-p2">
+          <div class="player-avatar avatar-p2" id="av2">P2</div>
+          <div>
+            <div class="player-name" id="name-p2">Player 2</div>
+            <div class="player-role" id="role-p2">—</div>
+          </div>
+          <span class="turn-indicator" id="turn-p2"></span>
+        </div>
+      </div>
+      <div class="sidebar-card">
+        <div class="sidebar-title">CHAT</div>
+        <div class="chat-messages" id="chat-messages"></div>
+        <div class="chat-input-row">
+          <input class="chat-input" id="chat-input" placeholder="Say something..." maxlength="80" onkeydown="if(event.key==='Enter')sendChat()"/>
+          <button class="chat-send" onclick="sendChat()">→</button>
+        </div>
+      </div>
+      <div class="sidebar-card">
+        <div class="sidebar-title">ACTIONS</div>
+        <button class="btn btn-secondary" style="font-size:11px;margin-bottom:8px" onclick="requestRematch()">🔄 REMATCH</button>
+        <button class="btn btn-danger" style="font-size:11px" onclick="leaveGame()">✕ LEAVE GAME</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="result-overlay" id="result-overlay">
+  <div class="result-card">
+    <span class="result-emoji" id="result-emoji">🏆</span>
+    <div class="result-title" id="result-titl
